@@ -4,15 +4,15 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-WORKDIR /apps
+WORKDIR /app
 
 # Install dependencies
-COPY requirements.txt .
+COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY apps/ apps/
+COPY app/ .
 
 EXPOSE 80
 
-CMD ["python", "apps/app.py"]
+CMD ["python", "app/app.py"]
