@@ -1,67 +1,26 @@
-name: Build and Deploy to AKS
-
+name: CI/CD Pipeline
 on:
   push:
-    branches:
-      - main
-
-env:
-  IMAGE_NAME: myapp
-  NAMESPACE: default
-
+    branches: [ main ]
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
-
-    # ------------------------
-    # Login to Azure
-    # ------------------------
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-    # ------------------------
-    # Login to Azure Container Registry
-    # ------------------------
-    - name: Login to ACR
-      run: |
-        az acr login --name ${{ secrets.ACR_NAME }}
-
-    # ------------------------
-    # Build and Push Docker Image
-    # ------------------------
-    - name: Build and Push Docker Image
-      run: |
-        docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} .
-        docker push ${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-    # ------------------------
-    # Get AKS credentials
-    # ------------------------
-    - name: Set AKS context
-      run: |
-        az aks get-credentials \
-          --resource-group ${{ secrets.AKS_RG }} \
-          --name ${{ secrets.AKS_NAME }} \
-          --overwrite-existing
-
-    # ------------------------
-    # Deploy to Kubernetes
-    # ------------------------
-    - name: Deploy to AKS
-      run: |
-        sed -i "s|IMAGE_PLACEHOLDER|${{ secrets.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/deployment.yaml
-        kubectl apply -f k8s/
-
-    # ------------------------
-    # Verify rollout
-    # ------------------------
-    - name: Verify Deployment
-      run: |
-        kubectl rollout status deployment/myapp -n ${{ env.NAMESPACE }}
-
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Build and push Docker image
+        run: |
+          docker build -t myregistry.azurecr.io/myapp:${{ github.sha }} .
+          docker push myregistry.azurecr.io/myapp:${{ github.sha }}
+      - name: Deploy to AKS
+        uses: azure/k8s-deploy@v1
+        with:
+          azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
+          action: deploy
+          manifests: |
+            ./k8s/deployment.yaml
+          images: myregistry.azurecr.io/myapp:${{ github.sha }}
