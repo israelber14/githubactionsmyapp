@@ -1,26 +1,41 @@
 name: CI/CD Pipeline
+
 on:
   push:
     branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
       - name: Login to Azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # 🔑 REQUIRED: Login to ACR
+      - name: Login to ACR
+        run: |
+          az acr login --name myuniqueacrname12345
+
       - name: Build and push Docker image
         run: |
           docker build -t myuniqueacrname12345.azurecr.io/myapp:${{ github.sha }} .
           docker push myuniqueacrname12345.azurecr.io/myapp:${{ github.sha }}
+
+      - name: Set AKS context
+        run: |
+          az aks get-credentials \
+            --resource-group MyResourceGroup \
+            --name MyAKSCluster \
+            --overwrite-existing
+
       - name: Deploy to AKS
-        uses: azure/k8s-deploy@v1
-        with:
-          azure_credentials: ${{ secrets.AZURE_CREDENTIALS }}
-          action: deploy
-          manifests: |
-            ./k8s/deployment.yaml
-          images: myuniqueacrname12345.azurecr.io/myapp:${{ github.sha }}
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|myuniqueacrname12345.azurecr.io/myapp:${{ github.sha }}|g" k8s/deployment.yaml
+          kubectl apply -f k8s/
+
